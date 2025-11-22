@@ -1,6 +1,6 @@
 # Running live @ 
 
-<a href="#" target="_blank" rel="[noopener noreferrer](https://jeanyuhs.com/routetool/)">Jeanyuhs Rout Tool</a>
+Right click and open in new tab https://jeanyuhs.com/routetool/
 Download location CSV to test https://jeanyuhs.com/routetool/noodles-co.csv
 
 # Self-Routing-Tool
