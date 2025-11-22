@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Territory Route Helper</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 1rem;
+      background: #f5f5f7;
+      color: #111827;
+    }
+    h1 {
+      font-size: 1.4rem;
+      margin-bottom: 0.5rem;
+    }
+    h2 {
+      font-size: 1.1rem;
+      margin-top: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .card {
+      background: #ffffff;
+      border-radius: 0.75rem;
+      padding: 1rem;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
+      margin-bottom: 1rem;
+    }
+    label {
+      display: block;
+      font-size: 0.85rem;
+      margin: 0.25rem 0;
+    }
+    input, select, button {
+      font-family: inherit;
+      font-size: 0.9rem;
+    }
+    input[type="text"], input[type="number"], input[type="time"], select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 0.4rem 0.5rem;
+      border-radius: 0.5rem;
+      border: 1px solid #d1d5db;
+      margin-top: 0.15rem;
+    }
+    input[type="file"] {
+      margin-top: 0.25rem;
+    }
+    button {
+      border-radius: 999px;
+      border: none;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      background: #111827;
+      color: white;
+      margin-top: 0.5rem;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .small {
+      font-size: 0.8rem;
+      color: #6b7280;
+    }
+    .flex {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .checkbox-group label {
+      display: inline-flex;
+      align-items: center;
+      margin-right: 0.75rem;
+      margin-bottom: 0.25rem;
+      font-size: 0.8rem;
+      background: #f3f4f6;
+      padding: 0.25rem 0.5rem;
+      border-radius: 999px;
+    }
+    .checkbox-group input {
+      margin-right: 0.25rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+      margin-top: 0.5rem;
+    }
+    th, td {
+      padding: 0.3rem 0.35rem;
+      border-bottom: 1px solid #e5e7eb;
+      text-align: left;
+    }
+    th {
+      background: #f9fafb;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    .tag {
+      display: inline-block;
+      padding: 0.1rem 0.4rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      background: #e5e7eb;
+    }
+    .tag.vip { background: #e0f2fe; }
+    .tag.target { background: #fee2e2; }
+    .tag["under performer"], .tag.under { background: #fef3c7; }
+    .tag.new { background: #dcfce7; }
+    .tag["not visited"] { background: #f3e8ff; }
+    .tag["moveable middle"], .tag.middle { background: #e5e7eb; }
+
+    .route-step {
+      padding: 0.5rem 0.75rem;
+      border-radius: 0.5rem;
+      background: #f9fafb;
+      margin-bottom: 0.3rem;
+    }
+    .route-step strong {
+      display: block;
+      margin-bottom: 0.2rem;
+    }
+    .pill {
+      display: inline-block;
+      padding: 0.1rem 0.45rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      background: #e5e7eb;
+      margin: 0.15rem 0.15rem 0 0;
+    }
+    a.button-link {
+      display: inline-block;
+      margin-top: 0.5rem;
+      text-decoration: none;
+      background: #2563eb;
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 999px;
+      font-size: 0.9rem;
+    }
+    .scroll-container {
+      max-height: 250px;
+      overflow: auto;
+      border-radius: 0.5rem;
+      border: 1px solid #e5e7eb;
+      background: white;
+      margin-top: 0.5rem;
+    }
+    .warning {
+      color: #b91c1c;
+      font-size: 0.8rem;
+      margin-top: 0.25rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Territory Route Helper</h1>
+  <p class="small">
+    Load your locations from a CSV (kept only in this browser), pick an anchor store, and generate a suggested route with timing.
+  </p>
+
+  <div class="card">
+    <h2>1. Load Accounts CSV</h2>
+    <label>
+      CSV File:
+      <input type="file" id="csvInput" accept=".csv" />
+    </label>
+    <p class="small">
+      Expected headers (case-insensitive): <code>name, address, city, state, zip, lat, lng, category, last_visit_date</code>.
+      Latitude/longitude are required for routing.
+    </p>
+    <p id="loadStatus" class="small"></p>
+  </div>
+
+  <div class="card">
+    <h2>2. Filters & Anchor Store</h2>
+    <div class="flex">
+      <div style="flex: 1 1 220px;">
+        <label>Anchor store (must-visit today):
+          <select id="anchorSelect">
+            <option value="">-- Load CSV first --</option>
+          </select>
+        </label>
+        <label>
+          Max additional stops:
+          <input type="number" id="maxStops" min="1" max="25" value="5" />
+        </label>
+      </div>
+
+      <div style="flex: 1 1 220px;">
+        <label>Category filter:</label>
+        <div id="categoryFilters" class="checkbox-group small">
+          <!-- Category checkboxes injected here -->
+        </div>
+        <p class="small">
+          If none selected, all categories are allowed.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>3. Start / End & Timing</h2>
+    <div class="flex">
+      <div style="flex: 1 1 220px;">
+        <label>
+          Start location (optional, e.g. "Home, Little Rock, AR"):
+          <input type="text" id="startAddress" placeholder="Used only in Google Maps link" />
+        </label>
+        <label>
+          End location (optional, e.g. hotel / home):
+          <input type="text" id="endAddress" placeholder="Used only in Google Maps link" />
+        </label>
+      </div>
+      <div style="flex: 1 1 220px;">
+        <label>
+          Leave home at (time):
+          <input type="time" id="startTime" value="08:00" />
+        </label>
+        <label>
+          Meeting duration (minutes):
+          <input type="number" id="meetingDuration" value="60" min="1" />
+        </label>
+        <label>
+          Average driving speed (mph):
+          <input type="number" id="avgSpeed" value="35" min="1" />
+        </label>
+      </div>
+    </div>
+    <div class="flex">
+      <div style="flex: 1 1 220px;">
+        <label>
+          Extra drive time: home → first stop (minutes):
+          <input type="number" id="startDriveMinutes" value="0" min="0" />
+        </label>
+      </div>
+      <div style="flex: 1 1 220px;">
+        <label>
+          Extra drive time: last stop → home (minutes):
+          <input type="number" id="endDriveMinutes" value="0" min="0" />
+        </label>
+      </div>
+    </div>
+    <p class="small">
+      Time estimates between stops are based on straight-line distance and the average speed you set.
+      Extra drive times let you account for home → first and last → home legs.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>4. Generate Route</h2>
+    <button id="routeBtn" disabled>Suggest Route</button>
+    <p id="routeSummary" class="small"></p>
+    <div id="routeContainer"></div>
+    <div id="mapsLinkContainer"></div>
+  </div>
+
+  <div class="card">
+    <h2>Accounts (preview)</h2>
+    <div class="scroll-container">
+      <table id="storesTable">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Category</th>
+            <th>City</th>
+            <th>Last Visit</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Rows injected here -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // --- State ---
+    let stores = [];
+    let headerIndex = {};
+
+    const csvInput = document.getElementById('csvInput');
+    const loadStatus = document.getElementById('loadStatus');
+    const anchorSelect = document.getElementById('anchorSelect');
+    const categoryFiltersDiv = document.getElementById('categoryFilters');
+    const routeBtn = document.getElementById('routeBtn');
+    const routeSummary = document.getElementById('routeSummary');
+    const routeContainer = document.getElementById('routeContainer');
+    const mapsLinkContainer = document.getElementById('mapsLinkContainer');
+    const storesTableBody = document.querySelector('#storesTable tbody');
+    const maxStopsInput = document.getElementById('maxStops');
+    const startAddressInput = document.getElementById('startAddress');
+    const endAddressInput = document.getElementById('endAddress');
+
+    const startTimeInput = document.getElementById('startTime');
+    const meetingDurationInput = document.getElementById('meetingDuration');
+    const avgSpeedInput = document.getElementById('avgSpeed');
+    const startDriveMinutesInput = document.getElementById('startDriveMinutes');
+    const endDriveMinutesInput = document.getElementById('endDriveMinutes');
+
+    csvInput.addEventListener('change', handleFileSelect);
+    routeBtn.addEventListener('click', suggestRoute);
+
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const text = e.target.result;
+          parseCSV(text);
+        } catch (err) {
+          console.error(err);
+          loadStatus.textContent = 'Error parsing CSV. Check the file format.';
+          loadStatus.className = 'small warning';
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function parseCSV(text) {
+      const lines = text.trim().split(/\r?\n/);
+      if (lines.length < 2) {
+        loadStatus.textContent = 'CSV appears to be empty.';
+        loadStatus.className = 'small warning';
+        return;
+      }
+
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      headerIndex = {};
+      headers.forEach((h, idx) => headerIndex[h] = idx);
+
+      const required = ['name', 'lat', 'lng'];
+      for (const r of required) {
+        if (headerIndex[r] === undefined) {
+          loadStatus.textContent = 'Missing required header: "' + r + '".';
+          loadStatus.className = 'small warning';
+          return;
+        }
+      }
+
+      stores = [];
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        const parts = line.split(','); // simple CSV split
+
+        const get = (field) => {
+          const idx = headerIndex[field];
+          return idx !== undefined && parts[idx] !== undefined ? parts[idx].trim() : '';
+        };
+
+        const lat = parseFloat(get('lat'));
+        const lng = parseFloat(get('lng'));
+        if (isNaN(lat) || isNaN(lng)) continue;
+
+        const store = {
+          id: i - 1,
+          name: get('name'),
+          address: get('address') || '',
+          city: get('city') || '',
+          state: get('state') || '',
+          zip: get('zip') || '',
+          lat,
+          lng,
+          category: get('category') || 'Uncategorized',
+          lastVisit: get('last_visit_date') || ''
+        };
+        stores.push(store);
+      }
+
+      if (!stores.length) {
+        loadStatus.textContent = 'No valid rows found (missing lat/lng?).';
+        loadStatus.className = 'small warning';
+        return;
+      }
+
+      loadStatus.textContent = 'Loaded ' + stores.length + ' stores.';
+      loadStatus.className = 'small';
+
+      populateAnchorSelect();
+      populateCategoryFilters();
+      renderStoresTable();
+      routeBtn.disabled = false;
+    }
+
+    function populateAnchorSelect() {
+      anchorSelect.innerHTML = '<option value="">-- Select anchor store --</option>';
+      stores.forEach(store => {
+        const opt = document.createElement('option');
+        opt.value = String(store.id);
+        opt.textContent = store.name + (store.city ? ' (' + store.city + ')' : '');
+        anchorSelect.appendChild(opt);
+      });
+    }
+
+    function populateCategoryFilters() {
+      const categories = Array.from(
+        new Set(stores.map(s => s.category || 'Uncategorized'))
+      ).sort((a, b) => a.localeCompare(b));
+      categoryFiltersDiv.innerHTML = '';
+      categories.forEach(cat => {
+        const id = 'cat_' + cat.replace(/\s+/g, '_').toLowerCase();
+        const label = document.createElement('label');
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.value = cat;
+        input.id = id;
+        label.appendChild(input);
+        const text = document.createTextNode(' ' + cat);
+        label.appendChild(text);
+        categoryFiltersDiv.appendChild(label);
+      });
+    }
+
+    function renderStoresTable() {
+      storesTableBody.innerHTML = '';
+      stores.forEach(store => {
+        const tr = document.createElement('tr');
+        const catClass = store.category.toLowerCase().replace(/\s+/g, ' ');
+        tr.innerHTML = `
+          <td>${escapeHtml(store.name)}</td>
+          <td><span class="tag ${catClass}">${escapeHtml(store.category || 'Uncategorized')}</span></td>
+          <td>${escapeHtml(store.city || '')}</td>
+          <td>${escapeHtml(store.lastVisit || '')}</td>
+        `;
+        storesTableBody.appendChild(tr);
+      });
+    }
+
+    function getSelectedCategories() {
+      const checked = Array.from(
+        categoryFiltersDiv.querySelectorAll('input[type="checkbox"]:checked')
+      ).map(cb => cb.value);
+      return checked;
+    }
+
+    function suggestRoute() {
+      routeContainer.innerHTML = '';
+      mapsLinkContainer.innerHTML = '';
+      routeSummary.textContent = '';
+
+      const anchorId = anchorSelect.value;
+      if (!anchorId) {
+        routeSummary.textContent = 'Please select an anchor store.';
+        routeSummary.className = 'small warning';
+        return;
+      }
+
+      const anchorStore = stores.find(s => String(s.id) === anchorId);
+      if (!anchorStore) {
+        routeSummary.textContent = 'Anchor store not found.';
+        routeSummary.className = 'small warning';
+        return;
+      }
+
+      let maxStops = parseInt(maxStopsInput.value, 10);
+      if (isNaN(maxStops) || maxStops < 1) maxStops = 5;
+
+      const selectedCats = getSelectedCategories();
+      const eligibleStores = stores.filter(s => s.id !== anchorStore.id &&
+        (selectedCats.length === 0 || selectedCats.includes(s.category))
+      );
+
+      if (!eligibleStores.length) {
+        routeSummary.textContent = 'No eligible stores found with current filters.';
+        routeSummary.className = 'small warning';
+        return;
+      }
+
+      // Nearest-neighbor route starting from anchor
+      const route = [anchorStore];
+      const remaining = eligibleStores.slice();
+
+      while (remaining.length && route.length <= maxStops) {
+        const last = route[route.length - 1];
+        let bestIdx = -1;
+        let bestDist = Infinity;
+        for (let i = 0; i < remaining.length; i++) {
+          const candidate = remaining[i];
+          const d = haversine(last.lat, last.lng, candidate.lat, candidate.lng);
+          if (d < bestDist) {
+            bestDist = d;
+            bestIdx = i;
+          }
+        }
+        if (bestIdx === -1) break;
+        route.push(remaining[bestIdx]);
+        remaining.splice(bestIdx, 1);
+      }
+
+      // Distances between stops
+      const legDistances = [];
+      let totalMiles = 0;
+      for (let i = 0; i < route.length - 1; i++) {
+        const d = haversine(route[i].lat, route[i].lng, route[i+1].lat, route[i+1].lng);
+        legDistances.push(d);
+        totalMiles += d;
+      }
+
+      // Timing calculations
+      const avgSpeed = parseFloat(avgSpeedInput.value) > 0 ? parseFloat(avgSpeedInput.value) : 35;
+      const meetingMinutes = parseInt(meetingDurationInput.value, 10) > 0 ? parseInt(meetingDurationInput.value, 10) : 60;
+      const extraStart = parseInt(startDriveMinutesInput.value, 10) >= 0 ? parseInt(startDriveMinutesInput.value, 10) : 0;
+      const extraEnd = parseInt(endDriveMinutesInput.value, 10) >= 0 ? parseInt(endDriveMinutesInput.value, 10) : 0;
+
+      const departHomeMinutes = parseTimeToMinutes(startTimeInput.value) ?? parseTimeToMinutes('08:00');
+
+      // Drive time for each leg between stores (minutes)
+      const legDriveMinutes = legDistances.map(d => (d / avgSpeed) * 60);
+
+      const schedule = [];
+      // leave home at departHomeMinutes, drive extraStart minutes to first stop
+      let current = departHomeMinutes + extraStart;
+
+      for (let i = 0; i < route.length; i++) {
+        const arrive = current;
+        const depart = arrive + meetingMinutes;
+        schedule.push({ arrive, depart });
+        if (i < legDriveMinutes.length) {
+          current = depart + legDriveMinutes[i];
+        } else {
+          current = depart;
+        }
+      }
+      const backHomeMinutes = current + extraEnd;
+
+      routeSummary.textContent =
+        `Suggested ${route.length} stops (approx ${totalMiles.toFixed(1)} miles between stores). ` +
+        `Leave home at ${minutesToTimeStr(departHomeMinutes)}, back around ${minutesToTimeStr(backHomeMinutes)} ` +
+        `(assuming ${avgSpeed} mph & ${meetingMinutes} min per stop).`;
+      routeSummary.className = 'small';
+
+      route.forEach((store, idx) => {
+        const div = document.createElement('div');
+        div.className = 'route-step';
+        const role = idx === 0 ? 'ANCHOR' : 'STOP ' + idx;
+        const timing = schedule[idx];
+        const arriveStr = minutesToTimeStr(timing.arrive);
+        const departStr = minutesToTimeStr(timing.depart);
+        div.innerHTML = `
+          <strong>${role}: ${escapeHtml(store.name)}</strong>
+          <span class="small">
+            ${escapeHtml(store.address || '')}
+            ${store.city ? ', ' + escapeHtml(store.city) : ''}
+            ${store.state ? ', ' + escapeHtml(store.state) : ''}
+            ${store.zip ? ' ' + escapeHtml(store.zip) : ''}
+          </span><br/>
+          <span class="pill">${escapeHtml(store.category || 'Uncategorized')}</span>
+          <span class="pill">Arrive ${arriveStr}</span>
+          <span class="pill">Done by ${departStr}</span>
+          <span class="pill">Lat ${store.lat.toFixed(4)}, Lng ${store.lng.toFixed(4)}</span>
+        `;
+        routeContainer.appendChild(div);
+      });
+
+      const mapsUrl = buildGoogleMapsUrl(route, startAddressInput.value.trim(), endAddressInput.value.trim());
+      if (mapsUrl) {
+        const link = document.createElement('a');
+        link.href = mapsUrl;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = 'Open in Google Maps';
+        link.className = 'button-link';
+        mapsLinkContainer.appendChild(link);
+
+        const note = document.createElement('p');
+        note.className = 'small';
+        note.textContent = 'Tap this on your phone to launch navigation.';
+        mapsLinkContainer.appendChild(note);
+      }
+    }
+
+    function buildGoogleMapsUrl(route, startAddress, endAddress) {
+      if (!route || !route.length) return '';
+
+      const encode = encodeURIComponent;
+
+      const waypoints = [];
+      if (startAddress) {
+        waypoints.push(encode(startAddress));
+      }
+      route.forEach(store => {
+        const coord = store.lat + ',' + store.lng;
+        waypoints.push(encode(coord));
+      });
+      if (endAddress) {
+        waypoints.push(encode(endAddress));
+      }
+
+      const base = 'https://www.google.com/maps/dir/';
+      return base + waypoints.join('/');
+    }
+
+    // Haversine distance (miles)
+    function haversine(lat1, lon1, lat2, lon2) {
+      const R = 3958.8; // Earth radius in miles
+      const toRad = (deg) => deg * Math.PI / 180;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // Time helpers
+    function parseTimeToMinutes(timeStr) {
+      if (!timeStr) return null;
+      const parts = timeStr.split(':');
+      if (parts.length !== 2) return null;
+      const h = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      if (isNaN(h) || isNaN(m)) return null;
+      return h * 60 + m;
+    }
+
+    function minutesToTimeStr(totalMinutes) {
+      if (totalMinutes == null || isNaN(totalMinutes)) return '';
+      totalMinutes = ((totalMinutes % (24 * 60)) + (24 * 60)) % (24 * 60); // wrap around 24h
+      const h = Math.floor(totalMinutes / 60);
+      const m = totalMinutes % 60;
+      const hh = String(h).padStart(2, '0');
+      const mm = String(m).padStart(2, '0');
+      return hh + ':' + mm;
+    }
+  </script>
+</body>
+</html>
